@@ -1,0 +1,11 @@
+.venv/
+.idea/
+__pycache__/
+*.pyc
+
+# Dataset
+data/
+*.mp4
+
+# Secrets
+.env

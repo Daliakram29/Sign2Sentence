@@ -1,8 +1,13 @@
 import cv2
 import mediapipe as mp
+import numpy as np
+import os
+
+#paths
 VIDEO_PATH = r"C:\Users\dalia\Downloads\val_rgb_front_clips\raw_videos\3EjKvwck6ss_0-1-rgb_front.mp4"
 MODEL_PATH = r"models\hand_landmarker.task"
 
+#mediaPipe setup
 BaseOptions = mp.tasks.BaseOptions
 HandLandmarker = mp.tasks.vision.HandLandmarker
 HandLandmarkerOptions = mp.tasks.vision.HandLandmarkerOptions
@@ -14,11 +19,55 @@ options = HandLandmarkerOptions(
     num_hands=2
 )
 
+sequence = []
+#define the function
+def extract_hand_features(result):
+    # 21 landmarks × 3 coordinates = 63 values
+    #we always reserve space for both hands
+    left_hand = np.zeros(63, dtype=np.float32)
+    right_hand = np.zeros(63, dtype=np.float32)
+
+    for hand_landmarks, handedness in zip(
+        result.hand_landmarks,
+        result.handedness
+    ):
+        hand_values = []
+
+        for lm in hand_landmarks:
+            hand_values.extend([
+                lm.x,
+                lm.y,
+                lm.z
+            ])
+
+        hand_values = np.array(
+            hand_values,
+            dtype=np.float32
+        )
+
+        hand_label = handedness[0].category_name
+
+        if hand_label == "Left":
+            left_hand = hand_values
+
+        elif hand_label == "Right":
+            right_hand = hand_values
+
+    # Left first, then Right
+    return np.concatenate([
+        left_hand,
+        right_hand
+    ])
+
+#open video:
 cap = cv2.VideoCapture(VIDEO_PATH)
 fps = cap.get(cv2.CAP_PROP_FPS)
 
 connections = mp.tasks.vision.HandLandmarksConnections.HAND_CONNECTIONS
 
+
+#detector context
+#create a list for the whole video
 with HandLandmarker.create_from_options(options) as detector:
     frame_number = 0
 
@@ -38,11 +87,14 @@ with HandLandmarker.create_from_options(options) as detector:
 
         # Time of this frame in milliseconds
         timestamp_ms = int((frame_number / fps) * 1000)
-
+#extract features inside the loop
         result = detector.detect_for_video(
             mp_image,
             timestamp_ms
         )
+
+        frame_features = extract_hand_features(result)
+        sequence.append(frame_features)
 
         h, w, _ = frame.shape
 
@@ -87,5 +139,28 @@ with HandLandmarker.create_from_options(options) as detector:
         if cv2.waitKey(1) & 0xFF == ord("q"):
             break
 
+sequence = np.array(sequence, dtype=np.float32)
+
+print("Sequence shape:", sequence.shape)
+print("First frame features: ")
+print(sequence[0])
+
+print("Second frame features: ")
+print(sequence[0].shape)
+
+print("First 10 values: ")
+print(sequence[0][:10])
+print("Non-zero values in first frame:")
+print(np.count_nonzero(sequence[0]))
 cap.release()
 cv2.destroyAllWindows()
+
+#save the sequence
+os.makedirs("data/processed", exist_ok=True)
+
+np.save(
+    "data/processed/test_sequence.npy",
+    sequence
+)
+
+print("Sequence saved!")

@@ -6,6 +6,10 @@ __pycache__/
 # Dataset
 data/
 *.mp4
+*.npy
 
 # Secrets
 .env
+
+# MediaPipe downloaded models
+*.task
